@@ -25,7 +25,7 @@ SELECT EMP_ID, EMP_NAME, DEPT_CODE, JOB_CODE, DEPT_TITLE, JOB_NAME
 FROM EMPLOYEE
 NATURAL JOIN JOB
 JOIN DEPARTMENT ON (DEPT_ID = DEPT_CODE)
-WHERE (DEPT_CODE, JOB_CODE) IN (SELECT DEPT_CODE, JOB_CODE
+WHERE (DEPT_CODE, JOB_CODE) = (SELECT DEPT_CODE, JOB_CODE
                                 FROM EMPLOYEE
                                 WHERE EMP_NAME = '노옹철')
 AND EMP_NAME != '노옹철';
@@ -35,7 +35,7 @@ AND EMP_NAME != '노옹철';
 -- 사번, 이름, 부서코드, 직급코드, 고용일
 SELECT EMP_ID, EMP_NAME, DEPT_CODE, JOB_CODE, HIRE_DATE
 FROM EMPLOYEE
-WHERE (DEPT_CODE, JOB_CODE) IN (SELECT DEPT_CODE, JOB_CODE
+WHERE (DEPT_CODE, JOB_CODE) = (SELECT DEPT_CODE, JOB_CODE
                                 FROM EMPLOYEE
                                 WHERE EXTRACT(YEAR FROM HIRE_DATE) = 2000);
                                 
@@ -44,7 +44,7 @@ WHERE (DEPT_CODE, JOB_CODE) IN (SELECT DEPT_CODE, JOB_CODE
 -- 사번, 이름, 부서코드, 사수번호, 주민번호, 고용일
 SELECT EMP_ID, EMP_NAME, DEPT_CODE, MANAGER_ID, EMP_NO, HIRE_DATE
 FROM EMPLOYEE
-WHERE (DEPT_CODE, MANAGER_ID) IN (SELECT DEPT_CODE, MANAGER_ID
+WHERE (DEPT_CODE, MANAGER_ID) = (SELECT DEPT_CODE, MANAGER_ID
                                   FROM EMPLOYEE
                                   WHERE EMP_NO LIKE '77%'
                                   AND SUBSTR(EMP_NO, 8, 1) = '2');
@@ -57,12 +57,22 @@ WHERE (DEPT_CODE, MANAGER_ID) IN (SELECT DEPT_CODE, MANAGER_ID
 SELECT EMP_ID , EMP_NAME , NVL(DEPT_TITLE, '소속없음'), JOB_NAME, HIRE_DATE
 FROM EMPLOYEE MAIN
 NATURAL JOIN JOB
-LEFT JOIN DEPARTMENT ON (DEPT_ID = DEPT_CODE)
-WHERE HIRE_DATE = (SELECT MIN(HIRE_DATE)
+LEFT JOIN DEPARTMENT D ON (MAIN.DEPT_CODE = D.DEPT_ID)
+WHERE HIRE_DATE IN (SELECT MIN(HIRE_DATE)
 					     		 FROM EMPLOYEE SUB
-								   WHERE SUB.DEPT_CODE = MAIN.DEPT_CODE)
-AND ENT_YN = 'N'
+								   --WHERE SUB.DEPT_CODE = MAIN.DEPT_CODE
+								   WHERE ENT_YN = 'N'
+								   --OR(SUB.DEPT_CODE IS NULL AND MAIN.DEPT_CODE IS NULL)
+								   GROUP BY DEPT_CODE)
 ORDER BY HIRE_DATE;
+-- 부서별로 그룹을 묶을 때 퇴사한 직원을 서브쿼리에서 제외해야함.
+-- WHY? 부서별로 가장 빠른 입사자 구했을 때 D8 부서는 이태림임(이태림은 퇴사자)
+--> 문제점 : 부서별로 가장 빠른 입사자 구해놓고, 메인쿼리에서 퇴사자를 제외해버리면
+-- D8부서는 퇴사자인 이태림이 가장 빠른 입사자이기 때문에,
+-- 전체 부서중 D8부서가 아에 제외되어 버림.
+--> 부서별 가장 빠른 입사자 구할 때(서브쿼리) 퇴사한 직원을 뺀 상태에서 그룹으로 묶으면
+--> D8부서의 가장 빠른 입사자는 이태림 제외 후 전형돈이 됨.
+
 
 
 -- 7. 직급별 나이가 가장 어린 직원의
@@ -71,27 +81,14 @@ ORDER BY HIRE_DATE;
 -- 단 연봉은 \124,800,000 으로 출력되게 하세요. (\ : 원 단위 기호)
 
 -- 메인
-SELECT EMP_ID , EMP_NAME, JOB_NAME,
-       (SELECT MIN(FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE('19' || SUBSTR(EMP_NO, 1, 6), 'YYMMDD')) / 12))
-       FROM EMPLOYEE SUB
-       WHERE SUB.JOB_CODE = MAIN.JOB_CODE
-       )
+SELECT EMP_ID , EMP_NAME, JOB_NAME, 
+    FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE('19' || SUBSTR(EMP_NO, 1, 6), 'YYMMDD')) / 12) "나이",
+    TO_CHAR(SALARY * 12 * NVL(BONUS+1, 1), 'L999,999,999') "보너스포함연봉"
 FROM EMPLOYEE MAIN
 JOIN JOB ON (MAIN.JOB_CODE = JOB.JOB_CODE)
-WHERE MAIN.JOB_CODE IN (SELECT SUB2.JOB_CODE
-                       FROM EMPLOYEE SUB2
-                       WHERE MAIN.JOB_CODE = SUB2.JOB_CODE);
-
-
-
--- 나이
-SELECT FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE('19' || SUBSTR(EMP_NO, 1, 6), 'YYMMDD')) / 12) "나이"
-FROM EMPLOYEE
-WHERE JOB_CODE = 
-
---  직급별 나이가 가장 어린 직원
-SELECT DEPT_CODE, EMP_NAME, MAX(EMP_NO)
-FROM EMPLOYEE
-WHERE FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE('19' || SUBSTR(EMP_NO, 1, 6), 'YYMMDD')) / 12) 
-GROUP BY DEPT_CODE, EMP_NAME;
-
+WHERE FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE('19' || SUBSTR(EMP_NO, 1, 6), 'YYMMDD')) / 12)
+                       = (SELECT MIN(FLOOR(MONTHS_BETWEEN(SYSDATE, 
+                          TO_DATE('19' || SUBSTR(EMP_NO, 1, 6), 'YYMMDD')) / 12))
+                          FROM EMPLOYEE SUB
+                          WHERE SUB.JOB_CODE = MAIN.JOB_CODE)
+ORDER BY "나이" DESC;
