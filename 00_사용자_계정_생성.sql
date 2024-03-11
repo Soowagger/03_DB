@@ -29,3 +29,14 @@ GRANT RESOURCE, CONNECT TO workbook;
 
 -- 객체가 생성될 수 있는 공간 할당량 지정
 ALTER USER workbook DEFAULT TABLESPACE SYSTEM QUOTA UNLIMITED ON SYSTEM;
+
+
+
+-- 실습용 사용자 계정 생성
+CREATE USER exam_ssm IDENTIFIED BY exam1234;
+
+-- 사용자 계정에 권한 부여
+GRANT RESOURCE, CONNECT TO exam_ssm;
+
+-- 객체가 생성될 수 있는 공간 할당량 지정
+ALTER USER exam_ssm DEFAULT TABLESPACE SYSTEM QUOTA UNLIMITED ON SYSTEM;
